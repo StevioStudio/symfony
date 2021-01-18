@@ -175,21 +175,7 @@ class FormTypeValidatorExtensionTest extends BaseValidatorExtensionTest
             ->setMetadataFactory($metadataFactory)
             ->getValidator();
 
-        $form = Forms::createFormFactoryBuilder()
-            ->addExtension(new ValidatorExtension($validator))
-            ->getFormFactory()
-            ->create(FormTypeTest::TESTED_TYPE, new Organization([]), [
-                'data_class' => Organization::class,
-                'by_reference' => false,
-            ])
-            ->add('authors', CollectionTypeTest::TESTED_TYPE, [
-                'entry_type' => AuthorType::class,
-                'allow_add' => true,
-                'allow_delete' => true,
-            ])
-        ;
-
-        $form->submit([
+        $submitData = [
             'authors' => [
                 0 => [
                     'firstName' => '', // Fires a Not Blank Error
@@ -205,7 +191,23 @@ class FormTypeValidatorExtensionTest extends BaseValidatorExtensionTest
                     'lastName' => 'lastName3',
                 ],
             ],
-        ]);
+        ];
+
+        $form = Forms::createFormFactoryBuilder()
+            ->addExtension(new ValidatorExtension($validator))
+            ->getFormFactory()
+            ->create(FormTypeTest::TESTED_TYPE, new Organization([]), [
+                'data_class' => Organization::class,
+                'by_reference' => false,
+            ])
+            ->add('authors', CollectionTypeTest::TESTED_TYPE, [
+                'entry_type' => AuthorType::class,
+                'allow_add' => true,
+                'allow_delete' => true,
+            ])
+        ;
+
+        $form->submit($submitData);
 
         //Form behaves right (...?). It has index 0, 2 and 3 (1 has been removed)
         $this->assertTrue($form->get('authors')->has('0'));
@@ -225,11 +227,53 @@ class FormTypeValidatorExtensionTest extends BaseValidatorExtensionTest
         ];
 
         $this->assertContains('data.authors[0].firstName', $errorPaths);
-        $this->assertNotContains('data.authors[1].firstName', $errorPaths);
+        $this->assertContains('data.authors[1].firstName', $errorPaths);
         $this->assertContains('data.authors[2].firstName', $errorPaths);
-        $this->assertContains('data.authors[3].firstName', $errorPaths);
+        $this->assertNotContains('data.authors[3].firstName', $errorPaths);
 
         //In fact, root form should NOT contain errors but it does
+        $this->assertCount(1, $form->getErrors(false));
+
+        //Let's to this again, but with new "reindex_on_submit" option set to true
+        $form = Forms::createFormFactoryBuilder()
+            ->addExtension(new ValidatorExtension($validator))
+            ->getFormFactory()
+            ->create(FormTypeTest::TESTED_TYPE, new Organization([]), [
+                'data_class' => Organization::class,
+                'by_reference' => false,
+            ])
+            ->add('authors', CollectionTypeTest::TESTED_TYPE, [
+                'entry_type' => AuthorType::class,
+                'allow_add' => true,
+                'allow_delete' => true,
+                'reindex_on_submit' => true,
+            ])
+        ;
+
+        $form->submit($submitData);
+
+        //Errors paths are not messing up now, because we reindexed the form on submit
+        $this->assertTrue($form->get('authors')->has('0'));
+        $this->assertTrue($form->get('authors')->has('1'));
+        $this->assertTrue($form->get('authors')->has('2'));
+        $this->assertNotTrue($form->get('authors')->has('3'));
+
+        //Form does have 3 not blank errors
+        $errors = $form->getErrors(true);
+        $this->assertCount(3, $errors);
+
+        $errorPaths = [
+            $errors[0]->getCause()->getPropertyPath(),
+            $errors[1]->getCause()->getPropertyPath(),
+            $errors[2]->getCause()->getPropertyPath(),
+        ];
+
+        $this->assertContains('data.authors[0].firstName', $errorPaths);
+        $this->assertContains('data.authors[1].firstName', $errorPaths);
+        $this->assertContains('data.authors[2].firstName', $errorPaths);
+        $this->assertNotContains('data.authors[3].firstName', $errorPaths);
+
+        //Root form does NOT contain errors
         $this->assertCount(0, $form->getErrors(false));
     }
 }

@@ -45,7 +45,8 @@ class CollectionType extends AbstractType
             $options['entry_options'],
             $options['allow_add'],
             $options['allow_delete'],
-            $options['delete_empty']
+            $options['delete_empty'],
+            $options['reindex_on_submit']
         );
 
         $builder->addEventSubscriber($resizeListener);
@@ -97,10 +98,12 @@ class CollectionType extends AbstractType
             'entry_type' => TextType::class,
             'entry_options' => [],
             'delete_empty' => false,
+            'reindex_on_submit' => false,
         ]);
 
         $resolver->setNormalizer('entry_options', $entryOptionsNormalizer);
         $resolver->setAllowedTypes('delete_empty', ['bool', 'callable']);
+        $resolver->setAllowedTypes('reindex_on_submit', ['bool']);
     }
 
     /**
